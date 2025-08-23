@@ -1,0 +1,44 @@
+name: OpenWrt SDK Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ccache libncurses5-dev libssl-dev zlib1g-dev subversion git python3
+
+      - name: Download OpenWrt SDK
+        run: |
+          wget https://downloads.openwrt.org/releases/23.05.5/targets/x86/64/openwrt-sdk-23.05.5-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          tar -xf openwrt-sdk-23.05.5-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz
+          SDK_DIR=$(tar -tf openwrt-sdk-23.05.5-x86-64_gcc-12.3.0_musl.Linux-x86_64.tar.xz | head -1)
+          echo "SDK_DIR=$SDK_DIR" >> $GITHUB_ENV
+
+      - name: Prepare SDK
+        run: |
+          cd $SDK_DIR
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Build package
+        run: |
+          cd $SDK_DIR
+          # 必要に応じて Makefile を修正
+          make package/feeds/packages/fontconfig/compile V=s
+          
+      - name: Upload built artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: built-package
+          path: $SDK_DIR/bin
