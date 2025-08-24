@@ -54,11 +54,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: built-package
-          path: $SDK_DIR/bin          # 必要に応じて Makefile を修正
-          make package/feeds/packages/fontconfig/compile V=s
-          
-      - name: Upload built artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: built-package
           path: $SDK_DIR/bin
