@@ -9,32 +9,52 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout source code
         uses: actions/checkout@v3
 
+      - name: Set TERM environment
+        run: echo "TERM=xterm" >> $GITHUB_ENV
+
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential ccache libncurses5-dev libssl-dev zlib1g-dev subversion git python3
+          sudo apt-get install -y build-essential ccache libncurses5-dev libssl-dev zlib1g-dev subversion git python3 wget xz-utils
 
-      - name: Download OpenWrt SDK
+      - name: Download and extract OpenWrt SDK
         run: |
-          wget https://archive.openwrt.org/releases/23.05.0/targets/bcm53xx/generic/openwrt-sdk-23.05.0-bcm53xx-generic_gcc-12.3.0_musl_eabi.Linux-x86_64.tar.xz
-          tar -xf openwrt-sdk-23.05.0-bcm53xx-generic_gcc-12.3.0_musl_eabi.Linux-x86_64.tar.xz
-          SDK_DIR=$(tar -tf openwrt-sdk-23.05.0-bcm53xx-generic_gcc-12.3.0_musl_eabi.Linux-x86_64.tar.xz | head -1)
+          SDK_ARCHIVE=openwrt-sdk-23.05.0-bcm53xx-generic_gcc-12.3.0_musl_eabi.Linux-x86_64.tar.xz
+          wget https://archive.openwrt.org/releases/23.05.0/targets/bcm53xx/generic/$SDK_ARCHIVE
+          tar -xf $SDK_ARCHIVE
+          SDK_DIR=$(tar -tf $SDK_ARCHIVE | head -1)
           echo "SDK_DIR=$SDK_DIR" >> $GITHUB_ENV
 
-      - name: Prepare SDK
+      - name: Prepare SDK feeds
         run: |
           cd $SDK_DIR
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Build package
+      - name: Apply non-interactive default config
         run: |
           cd $SDK_DIR
-          # 必要に応じて Makefile を修正
+          make defconfig
+          # 循環依存でエラーが出るパッケージを無効化（必要に応じて調整）
+          echo "CONFIG_PACKAGE_python3-pymysql=n" >> .config
+          make oldconfig
+
+      - name: Build target package
+        run: |
+          cd $SDK_DIR
+          # 並列ビルド
+          make package/feeds/packages/fontconfig/compile V=s -j$(nproc)
+
+      - name: Upload built artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-package
+          path: $SDK_DIR/bin          # 必要に応じて Makefile を修正
           make package/feeds/packages/fontconfig/compile V=s
           
       - name: Upload built artifact
